@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0D4CD3">
+  <title>Теплотрасса — автоматическая трассировка подключений</title>
+  <link rel="icon" type="image/png" href="/logo-mark.png">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="icon-btn" id="sidebarToggle" type="button" aria-label="Скрыть или показать панель" aria-expanded="true" title="Панель">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Теплотрасса">
+        <span class="brand-mark" aria-hidden="true"><img src="/logo-mark.png" alt="" width="34" height="34"></span>
+        <span class="brand-text"><strong>Теплотрасса</strong><small>Автоматическая трассировка подключений ОКС</small></span>
+      </a>
+    </div>
+    <div class="top-actions">
+      <span class="mode-pill" title="Расчёт в плоскости, без глубины"><i></i> 2D-расчёт</span>
+      <button class="icon-btn" id="themeToggle" type="button" aria-label="Сменить тему оформления" title="Тема: светлая / тёмная / как в системе">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" class="half"/></svg>
+      </button>
+      <a class="icon-btn" href="/swagger-ui/index.html" target="_blank" rel="noopener" title="Документация API" aria-label="Документация API">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>
+      </a>
+    </div>
+    <div class="activity" id="activity" aria-hidden="true"></div>
+  </header>
+
+  <main class="workspace" id="workspace">
+    <aside class="sidebar" id="sidebar" aria-label="Параметры расчёта">
+      <section class="side-head">
+        <h1>Новый расчёт</h1>
+        
+      </section>
+
+      <ol class="steps" aria-label="Этапы обработки">
+        <li class="active" data-step="upload"><span>1</span><div><b>Данные</b></div></li>
+        <li data-step="geometry"><span>2</span><div><b>Проверка</b></div></li>
+        <li data-step="result"><span>3</span><div><b>Варианты</b></div></li>
+      </ol>
+
+      <section class="card upload-card">
+        <label class="dropzone" id="dropzone">
+          <input id="fileInput" type="file" accept=".geojson,.json,application/geo+json,application/json">
+          <span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg></span>
+          <span class="dropzone-text"><b id="fileLabel">Выберите или перетащите файл</b>
+          <small>GeoJSON · до 3 ГиБ</small></span>
+        </label>
+        <div class="progress hidden" id="uploadProgress"><i></i></div>
+        <button class="btn primary" id="uploadButton" type="button" disabled>Загрузить и проверить</button>
+        <button class="link-btn" id="showExisting" type="button">Открыть уже загруженный импорт</button>
+        <div class="existing hidden" id="existingBox">
+          <label for="importId">UUID импорта</label>
+          <div class="inline"><input id="importId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off"><button id="connectButton" class="btn compact" type="button">Открыть</button></div>
+        </div>
+      </section>
+
+      <section class="card settings disabled" id="settingsCard">
+        <div class="card-title"><span>Параметры расчёта</span><span class="check" id="dataCheck" title="Данные готовы"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></div>
+        <span class="field-label">Точки подключения</span>
+        <div class="segmented" role="group" aria-label="Точки подключения">
+          <button class="selected" type="button" data-target-mode="all">Все ОКС</button><button type="button" data-target-mode="selected">По номерам</button>
+        </div>
+        <input class="hidden" id="targetOrdinals" placeholder="Например: 0, 4, 12" aria-label="Номера ОКС">
+        <span class="field-label">Режим расчёта</span>
+        <div class="segmented" role="group" aria-label="Режим расчёта">
+          <button class="selected" type="button" data-calc-mode="2D" title="Основной расчёт в плане">2D</button><button type="button" data-calc-mode="DEPTH" title="Дополнительный режим: глубина заложения, уклоны, вертикальные зазоры">С глубиной</button>
+        </div>
+        <label class="field-label" for="variantCount">Количество вариантов</label>
+        <div class="range-row"><input id="variantCount" type="range" min="1" max="3" value="1"><output id="variantValue" for="variantCount">1</output></div>
+        <label class="check-row" title="Если у какой-то точки маршрут не найден, но отсутствие маршрута не доказано, результат не выдаётся, а не штрафуется"><input type="checkbox" id="strictCheck" checked><span>Строгая проверка полноты</span></label>
+        <button class="btn accent" id="calculateButton" type="button" disabled><span>Рассчитать варианты</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></button>
+        
+      </section>
+    </aside>
+
+    <section class="map-shell" aria-label="Карта">
+      <canvas id="mapCanvas" tabindex="0" aria-label="Интерактивная карта объектов. Стрелки — сдвиг, плюс и минус — масштаб, ноль — показать всё"></canvas>
+      <div class="map-empty" id="mapEmpty"><span class="map-empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.1 5.55a2 2 0 0 0 1.8 0l3.66-1.83A1 1 0 0 1 21 4.62v12.76a1 1 0 0 1-.55.9l-4.55 2.27a2 2 0 0 1-1.79 0l-4.21-2.1a2 2 0 0 0-1.79 0l-3.66 1.83A1 1 0 0 1 3 19.38V6.62a1 1 0 0 1 .55-.9l4.55-2.27a2 2 0 0 1 1.79 0z"/><path d="M15 5.76v15M9 3.24v15"/></svg></span><h2>Карта появится после загрузки</h2></div>
+
+      <div class="map-toolbar hidden" id="mapToolbar">
+        <button id="zoomIn" type="button" title="Приблизить (+)" aria-label="Приблизить"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button id="zoomOut" type="button" title="Отдалить (−)" aria-label="Отдалить"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+        <button id="fitMap" type="button" title="Показать всё (0)" aria-label="Показать всё"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+      </div>
+
+      <div class="layer-panel hidden" id="layerPanel">
+        <button class="layer-toggle" id="layerToggle" type="button" aria-expanded="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg> Слои и обозначения</button>
+        <div class="layer-menu" id="layerMenu">
+          <label><input type="checkbox" data-layer="network" checked><i class="sw line network"></i> Существующая сеть</label>
+          <label><input type="checkbox" data-layer="restriction" checked><i class="sw area restriction"></i> Ограничения</label>
+          <label><input type="checkbox" data-layer="oks" checked><i class="sw point oks"></i> Точки ОКС</label>
+          <label><input type="checkbox" data-layer="result" checked><i class="sw line result"></i> Новая сеть</label>
+          <label><input type="checkbox" data-layer="labels"><i class="sw label"></i> Подписи камер и ОКС</label>
+          <div class="legend-note"><span><i class="sw line gas"></i> Газопровод</span><span><i class="sw line cable"></i> Кабель</span><span><i class="sw line rail"></i> Железная дорога, трамвай</span><span><i class="sw point oks-ok"></i> ОКС подключён</span><span><i class="sw point oks-off"></i> ОКС без подключения</span><span><i class="sw point oks-doubt"></i> ОКС: маршрут не доказан</span><span><i class="sw point chamber"></i> Камеры</span><span><i class="sw point chamber-new"></i> Новые камеры</span><span><i class="sw point source"></i> Источники</span></div>
+        </div>
+      </div>
+      <div class="map-status hidden" id="mapStatus"></div>
+      <div class="toasts" id="toasts" role="region" aria-label="Уведомления" aria-live="polite"></div>
+      <div class="taskcard hidden" id="taskCard" role="status" aria-live="polite">
+        <div class="taskcard-head"><span class="taskcard-title" id="taskTitle">Выполняется</span><span class="taskcard-time" id="taskTime">0:00</span></div>
+        <div class="taskbar indeterminate" id="taskBar"><i></i></div>
+        <div class="taskcard-detail" id="taskDetail"></div>
+        <div class="taskcard-ping" id="taskPing"><i></i><span id="taskPingText">Сервер отвечает</span></div>
+      </div>
+
+      <button class="btn ghost results-reopen hidden" id="reopenResults" type="button" title="Показать результаты расчёта"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg> Результаты</button>
+      <aside class="result-panel hidden" id="resultPanel" aria-label="Результат расчёта">
+        <div class="result-head"><div><h2>Варианты подключения</h2></div><button class="icon-btn small" id="closeResults" type="button" aria-label="Свернуть результаты"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+        <div class="variant-tabs" id="variantTabs" role="tablist"></div>
+        <div class="score-card"><div><small>Показатель S</small><strong id="scoreValue">—</strong></div><span id="rankBadge">1 место</span></div>
+        <dl class="score-parts" id="scoreParts" aria-label="Из чего складывается показатель"></dl>
+        <dl class="metrics">
+          <div><dt>Строительство</dt><dd id="costValue">—</dd></div>
+          <div><dt>Штраф за неподключённые</dt><dd id="penaltyValue">—</dd></div>
+          <div><dt>Итоговая стоимость C</dt><dd id="totalValue">—</dd></div>
+          <div><dt>Длина новой сети L</dt><dd id="lengthValue">—</dd></div>
+          <div><dt>Новых камер</dt><dd id="chamberValue">—</dd></div>
+          <div><dt>Неподключённых ОКС</dt><dd id="unconnectedValue">—</dd></div>
+        </dl>
+        <div class="notice hidden" id="resultNotice" role="status"></div>
+        <div class="validation" id="validationState"><span class="v-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><div><b>Результат проверен</b></div></div>
+        <button class="btn primary" id="downloadButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg> Скачать GeoJSON</button>
+      </aside>
+      <aside class="feature-card hidden" id="featureCard" aria-live="polite"><button class="icon-btn small" id="closeFeature" type="button" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button><p class="eyebrow" id="featureKind">Объект</p><h3 id="featureName">—</h3><dl id="featureProperties"></dl><p class="note hidden" id="featureNote"></p></aside>
+    </section>
+  </main>
+
+  <div id="modalRoot"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

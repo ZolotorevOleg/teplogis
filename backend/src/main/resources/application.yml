@@ -1,0 +1,51 @@
+server:
+  port: 8080
+  shutdown: graceful
+  tomcat:
+    max-swallow-size: -1
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/heat}
+    username: ${DB_USER:heat}
+    password: ${DB_PASSWORD:heat-local-dev}
+    hikari:
+      # Headroom for several concurrent calculations (CostService.CONCURRENT_CALCULATIONS): each one's
+      # target searches borrow a connection briefly, not for the whole calculation.
+      maximum-pool-size: ${DB_POOL_SIZE:24}
+      data-source-properties:
+        # Restriction/routing checks repeat the same handful of SQL statements thousands of times
+        # per search on a pooled connection; without this the driver re-plans every single call.
+        prepareThreshold: 1
+        preparedStatementCacheQueries: 256
+        preparedStatementCacheSizeMiB: 5
+  servlet:
+    multipart:
+      max-file-size: 3GB
+      max-request-size: 3073MB
+      file-size-threshold: 0
+      location: ${MULTIPART_DIRECTORY:${java.io.tmpdir}}
+  flyway:
+    enabled: true
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  upload-directory: ${UPLOAD_DIRECTORY:./data/uploads}
+  max-upload-bytes: 3221225472
+  max-concurrent-imports: ${MAX_CONCURRENT_IMPORTS:2}
+  storage-cleanup:
+    enabled: ${STORAGE_CLEANUP_ENABLED:true}
+    orphan-min-age: ${STORAGE_CLEANUP_MIN_AGE:PT24H}
+    initial-delay-ms: ${STORAGE_CLEANUP_INITIAL_DELAY_MS:60000}
+    delay-ms: ${STORAGE_CLEANUP_DELAY_MS:3600000}

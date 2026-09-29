@@ -1,0 +1,38 @@
+work/
+backend/target/
+.env
+.env.*
+!.env.example
+data/
+*.log
+tmp/
+
+# IDE / ОС
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+~$*
+
+# Python (scripts/)
+__pycache__/
+*.pyc
+
+# TLS-материалы, если сертификат/ключ когда-либо будет сгенерирован внутри дерева репозитория
+*.pem
+*.key
+*.crt
+*.p12
+
+/2. ДИТ.pdf
+/Техническое  приложение ЛЦТ.docx
+/Разъяснения по вопросам ЛЦТ.docx
+/clarif.txt
+/techapp.txt
+/ЛЦТ2026 Шаблон презентации.pptx
+/ЛЦТ2026 презентация проекта.pptx
+docs/sources/
+
+outputs/
