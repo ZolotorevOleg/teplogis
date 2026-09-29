@@ -146,8 +146,8 @@
 ## Быстрый старт
 
 ```sh
-git clone <URL-этого-репозитория>
-cd <каталог-репозитория>
+git clone https://github.com/ZolotorevOleg/teplogis
+cd teplogis
 docker-compose up -d --build
 ```
 
