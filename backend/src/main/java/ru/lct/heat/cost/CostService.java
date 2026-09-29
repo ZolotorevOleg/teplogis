@@ -13,16 +13,14 @@ public class CostService {
     private static final org.slf4j.Logger LOG=org.slf4j.LoggerFactory.getLogger(CostService.class);
     private static final double EPS=1e-5;
     private static final int CACHE_LIMIT=16;
-    /** Только защитный потолок: реальные запросы завершаются за секунды. Ограничивает разогнавшийся план
-     *  (например, слишком большой импорт), чтобы он не держал слот расчёта или поток вызывающего вечно. */
-    private static final long PROFILE_TIMEOUT_MS=Long.getLong("lct.calcProfileTimeoutMs",180_000L);
     private static final long SLOT_TIMEOUT_MS=Long.getLong("lct.calcSlotTimeoutMs",10_000L);
     /** Сколько разных импортов могут одновременно вести тяжёлый расчёт. Кэши на импорт (ObstacleIndex,
      *  future планов, решения по ограничениям) уже построены для параллельного доступа — каждая цель одного
      *  расчёта и так уже ищется параллельно, — поэтому это никогда не было ограничением корректности, только
      *  излишне строгим лимитом. Ограничено достаточно низко, чтобы несколько расчётов реалистичного размера,
-     *  идущих одновременно, не заморили пул JDBC (см. maximum-pool-size в application.yml); потолок 180 с
-     *  на план выше всё равно защищает от того, что какой-то один из них окажется слишком большим. */
+     *  идущих одновременно, не заморили пул JDBC (см. maximum-pool-size в application.yml). Расчёт больше не
+     *  ограничен по времени ожидания, поэтому слишком большой план держит свой слот столько, сколько ему
+     *  реально требуется, а не отбрасывается по искусственному потолку. */
     private static final int CONCURRENT_CALCULATIONS=Integer.getInteger("lct.calcConcurrency",4);
     private final NetworkService networks;
     private final Semaphore calculationSlot=new Semaphore(CONCURRENT_CALCULATIONS,true);
@@ -122,24 +120,10 @@ public class CostService {
         throw busy();
     }
     private static GeometryFailure busy(){return new GeometryFailure(503,"CALCULATION_UNAVAILABLE",-1,"Сервис расчёта временно перегружен. Повторите попытку через 10 секунд.");}
-    private static GeometryFailure calculationTimeout(){
-        return new GeometryFailure(503,"CALCULATION_TIMEOUT",-1,"Расчёт превысил лимит времени ("+(PROFILE_TIMEOUT_MS/1000)+" с) — вероятно, слишком много точек подключения для одного запроса. Уменьшите число точек или повторите позже.");
-    }
     private static <T> T awaitBounded(CompletableFuture<T> future){
-        try{return future.get(PROFILE_TIMEOUT_MS,TimeUnit.MILLISECONDS);}
+        try{return future.get();}
         catch(ExecutionException failure){Throwable cause=failure.getCause();if(cause instanceof RuntimeException)throw (RuntimeException)cause;if(cause instanceof Error)throw (Error)cause;throw new IllegalStateException(cause);}
         catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw busy();}
-        catch(TimeoutException timeout){throw busy();}
-    }
-    /** То же ожидание, но план с истёкшим тайм-аутом ещё и удаляется из общего кэша: иначе каждый следующий запрос
-     *  с теми же целями продолжал бы ждать тот же никогда не завершающийся future вместо новой попытки. Само фоновое
-     *  вычисление при этом не прерывается (JDBC не умеет безопасно отменять запрос на середине) и продолжает идти,
-     *  пока не завершится или не упадёт естественным образом — просто больше никто не обязан его дожидаться. */
-    private NetworkService.Result awaitPlan(String key,CompletableFuture<NetworkService.Result> future){
-        try{return future.get(PROFILE_TIMEOUT_MS,TimeUnit.MILLISECONDS);}
-        catch(ExecutionException failure){Throwable cause=failure.getCause();if(cause instanceof RuntimeException)throw (RuntimeException)cause;if(cause instanceof Error)throw (Error)cause;throw new IllegalStateException(cause);}
-        catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw calculationTimeout();}
-        catch(TimeoutException timeout){synchronized(plans){plans.remove(key,future);}throw calculationTimeout();}
     }
 
     private Result calculate(UUID importId,int limit,List<Long> targets,boolean strict,boolean depth){
@@ -166,7 +150,7 @@ public class CostService {
         }
         for(int profile=0;profile<3&&accepted.size()<limit;profile++){
             out.attemptedProfiles++;
-            NetworkService.Result planned=awaitPlan(planKey(importId,targets,profile),started.containsKey(profile)?started.get(profile):planAsync(importId,targets,profile));
+            NetworkService.Result planned=awaitBounded(started.containsKey(profile)?started.get(profile):planAsync(importId,targets,profile));
             if(!valid(planned)){out.rejectedCandidates++;continue;}
             if(depth){
                 // режим глубины сохраняет маршруты и подбирает профиль глубины; сеть, чей профиль не может удовлетворить
